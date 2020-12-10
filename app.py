@@ -7,6 +7,7 @@ import calendar
 import json
 import os
 import vaex
+from memory_profiler import profile
 # plotly components
 import plotly
 import plotly.graph_objs as go
@@ -29,8 +30,6 @@ app = dash.Dash(__name__,
                     {"name": "viewport", "content": "width=device-width, initial-scale=1"},
                 ])
 
-
-
 server = app.server
 
 # Mapbox access token and the map style file
@@ -50,66 +49,12 @@ with open('aux_data/borough.json', 'rb') as f:
 with open('aux_data/zone_to_borough.json', 'rb') as f:
     zbmapper = json.load(f)
 
-zone_index_to_name = {int(index): name for index, name in zmapper.items()}
-zone_name_to_index = {name: int(index) for index, name in zmapper.items()}
-borough_index_to_name = {int(index): name for index, name in bmapper.items()}
-borough_name_to_index = {name: int(index) for index, name in bmapper.items()}
-zone_index_to_borough_index = {int(
-    index): borough_name_to_index[zbmapper[name]] for index, name in zmapper.items()}
-
-# Open the main data
-taxi_path = 's3://vaex/taxi/yellow_taxi_2012_zones.hdf5?anon=true'
-taxi_path = os.environ.get('TAXI_PATH', taxi_path)
-df_original = vaex.open(taxi_path)
-
-used_columns = ['total_amount',
-                'trip_duration_min',
-                'trip_speed_mph',
-                'pickup_hour',
-                'pickup_day',
-                # 'dropoff_borough',
-                'dropoff_zone',
-                # 'pickup_borough',
-                'pickup_zone']
-
-df_original.categorize(df_original.pickup_day, labels=[
-                       'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], inplace=True)
-df_original.categorize(df_original.pickup_zone, inplace=True)
-df_original.categorize(df_original.dropoff_zone, inplace=True)
-df_original.categorize(df_original.pickup_hour, inplace=True)
-
-df = df_original[used_columns]
-
-#
-#   Data processing
-#
-
-
-def extract_zone_data(df, zone=None):
-    if zone == None:
-        daily_data = df.count(binby=df.pickup_day)
-        hourly_data = df.count(binby=df.pickup_hour)
-        # price_data  = df.count(binby=df.total_amount)
-
-    else:
-        zone_df = df[df.pickup_zone == zone]
-        daily_data = zone_df.count(binby=df.pickup_day)
-        hourly_data = zone_df.count(binby=df.pickup_hour)
-        # price_data  = zone_df.count(binby=df.total_amount)
-
-    daily_data = 1/sum(daily_data) * daily_data
-    daily_data = daily_data - np.mean(daily_data)
-
-    hourly_data = 1/sum(hourly_data) * hourly_data
-
-    data = {"daily": daily_data, "hourly": hourly_data}
-
-    return data
-
+data_filename = 'aux_data/zone_data.json'
+with open(data_filename, 'r') as f:
+    ZONE_DATA = json.load(f)
 #
 #   Create Choropleth map
 #
-
 
 def create_figure_geomap(pickup_counts, zone=None, zoom=10, center={"lat": 40.7, "lon": -73.99}):
     geomap_data = {
@@ -213,14 +158,15 @@ def create_hourly_plot(hourly):
 #
 #   Create charts
 #
-pickup_counts = df_original.count(binby=df_original.pickup_zone)
+
+data = ZONE_DATA['-1']
+pickup_counts = data.get('pickup_counts')
 chart = create_figure_geomap(pickup_counts, zone=None)
 
-data = extract_zone_data(df, zone=None)
 
-daily = create_daily_plot(data['daily'])
+daily = create_daily_plot(data.get('daily'))
 
-hourly = create_hourly_plot(data['hourly'])
+hourly = create_hourly_plot(data.get('hourly'))
 
 #
 #   App layout
@@ -302,12 +248,12 @@ def display_selected_data(clickData):
     Input('nyc_map', 'clickData')
 )
 def update_hourly(clickData):
-    zone = clickData['points'][0]['pointNumber'] if clickData is not None else None
-    data = extract_zone_data(df, zone=zone)
+    zone = str(clickData['points'][0]['pointNumber']) if clickData is not None else '-1'
+    data = ZONE_DATA[zone]
     daily = create_daily_plot(data['daily'])
     hourly = create_hourly_plot(data['hourly'])
 
-    zone_name = clickData['points'][0]['location'] if clickData is not None else "All Data"
+    zone_name = data['name'] if clickData is not None else "All Data"
     return zone_name, daily, hourly
 
 if __name__ == '__main__':
