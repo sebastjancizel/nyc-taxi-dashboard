@@ -311,4 +311,4 @@ def update_hourly(clickData):
     return zone_name, daily, hourly
 
 if __name__ == '__main__':
-    app.run_server()
+    app.run_server(debug=True, port=8080)
