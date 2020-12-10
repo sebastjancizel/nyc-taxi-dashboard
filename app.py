@@ -7,7 +7,6 @@ import calendar
 import json
 import os
 import vaex
-from memory_profiler import profile
 # plotly components
 import plotly
 import plotly.graph_objs as go
@@ -55,6 +54,7 @@ with open(data_filename, 'r') as f:
 #
 #   Create Choropleth map
 #
+
 
 def create_figure_geomap(pickup_counts, zone=None, zoom=10, center={"lat": 40.7, "lon": -73.99}):
     geomap_data = {
@@ -113,7 +113,7 @@ def create_figure_geomap(pickup_counts, zone=None, zoom=10, center={"lat": 40.7,
         fig.data[1]['hovertemplate'] = hovertemplate
 
     fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0},
-                      coloraxis_showscale=False, showlegend=False, clickmode='event+select')
+                      coloraxis_showscale=False, showlegend=False, clickmode='event+select', height=700)
     return fig
 
 
@@ -122,7 +122,8 @@ def create_daily_plot(daily):
     days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
     weekly_fig = px.bar(x=days, y=daily)
-    weekly_fig.update_yaxes(zeroline = True, showgrid=True, gridwidth=.5, gridcolor='#d5d5d5')
+    weekly_fig.update_yaxes(zeroline=True, showgrid=True,
+                            gridwidth=.5, gridcolor='#d5d5d5')
     weekly_fig.update_layout(
         yaxis=dict(tickformat=".1%", title=None),
         xaxis=dict(title=None),
@@ -130,7 +131,6 @@ def create_daily_plot(daily):
         margin={"r": 0, "l": 0},
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
-        height=300
     )
 
     return weekly_fig
@@ -139,7 +139,8 @@ def create_daily_plot(daily):
 def create_hourly_plot(hourly):
     hourly_fig = px.area(hourly)
 
-    hourly_fig.update_yaxes(zeroline = True, showgrid=True, gridwidth=.5, gridcolor='#d5d5d5')
+    hourly_fig.update_yaxes(zeroline=True, showgrid=True,
+                            gridwidth=.5, gridcolor='#d5d5d5')
 
     hourly_fig.update_layout(
         yaxis=dict(title=None, tickformat='.1%'),
@@ -149,7 +150,6 @@ def create_hourly_plot(hourly):
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
         showlegend=False,
-        height=300
     )
 
     return hourly_fig
@@ -171,24 +171,38 @@ hourly = create_hourly_plot(data.get('hourly'))
 #
 #   App layout
 #
+map = dbc.Card(
+    dbc.CardBody(
+        dcc.Graph(
+            id='nyc_map',
+            figure=chart
+        ))
+)
+
+
 graphs = dbc.Card(
     [
-    dbc.CardHeader(
-        children=[html.H4("Zone Name", id='zone-stats-header')],
-    ),
-    dbc.CardBody(
-        [
-            dcc.Graph(
-                id='daily',
-                figure=daily
-            ),
-
-            dcc.Graph(
-                id='hourly',
-                figure=hourly
-            )
-        ]
-    )
+        dbc.CardHeader(
+            children=[html.H4("Zone Name", id='zone-stats-header')],
+        ),
+        dbc.CardBody(
+            dbc.CardGroup(
+            [
+                dbc.Card(
+                dcc.Graph(
+                    id='daily',
+                    figure=daily
+                ), 
+                color='light',
+                outline=True
+                ),
+                dbc.Card(
+                dcc.Graph(
+                    id='hourly',
+                    figure=hourly
+                ))
+            ])
+        )
     ]
 )
 
@@ -197,27 +211,19 @@ graphs = dbc.Card(
 
 
 content = html.Div(
-    dbc.Container(
+    dbc.Card(
         [
-            html.H1("NYC Taxi Dataset"),
-            dbc.Row(
-                [
-                    dbc.Col(dbc.Card(
-                            dbc.CardBody(
-                                dcc.Graph(
-                                    id='nyc_map',
-                                    figure=chart
-                                ))), 
-                            ),
-
-                    dbc.Col(
-                        graphs, md=4
-                    )
-
-                ]
-            )
+            dbc.CardHeader(
+                html.H1("NYC Taxi Dataset"),
+                # style={"background-color":"#2780E3", "opacity":0.3}
+            ),
+            dbc.CardBody(
+                dbc.CardDeck(
+                    [
+                        map, graphs
+                    ]
+                ))
         ],
-        fluid=True,
         id='content'
     )
 )
@@ -232,6 +238,7 @@ selected = html.Div([
 ])
 
 app.layout = html.Div(children=[dcc.Location(id="url"), content, selected])
+
 
 @app.callback(
     Output('click-data', 'children'),
@@ -248,13 +255,15 @@ def display_selected_data(clickData):
     Input('nyc_map', 'clickData')
 )
 def update_hourly(clickData):
-    zone = str(clickData['points'][0]['pointNumber']) if clickData is not None else '-1'
+    zone = str(clickData['points'][0]['pointNumber']
+               ) if clickData is not None else '-1'
     data = ZONE_DATA[zone]
     daily = create_daily_plot(data['daily'])
     hourly = create_hourly_plot(data['hourly'])
 
-    zone_name = data['name'] if clickData is not None else "All Data"
+    zone_name = data['name'] if clickData is not None else "New York City"
     return zone_name, daily, hourly
+
 
 if __name__ == '__main__':
     app.run_server(debug=True, port=8080)
