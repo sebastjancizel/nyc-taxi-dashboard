@@ -29,6 +29,10 @@ app = dash.Dash(__name__,
                     {"name": "viewport", "content": "width=device-width, initial-scale=1"},
                 ])
 
+
+
+server = app.server
+
 # Mapbox access token and the map style file
 TOKEN = open(".mapbox_token").read()
 STYLE_FILE = "mapbox://styles/scizel/ckhhw5ql12qs219pbajeadpss"
