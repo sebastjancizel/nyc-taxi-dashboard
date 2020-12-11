@@ -29,6 +29,8 @@ app = dash.Dash(__name__,
                     {"name": "viewport", "content": "width=device-width, initial-scale=1"},
                 ])
 
+app.title = "NYC Taxi Data Dash"
+
 server = app.server
 
 # Mapbox access token and the map style file
@@ -50,13 +52,14 @@ with open('aux_data/zone_to_borough.json', 'rb') as f:
 
 data_filename = 'aux_data/zone_data.json'
 with open(data_filename, 'r') as f:
-    ZONE_DATA = json.load(f)
+    ZONE_DATA = {int(zone): data for zone, data in json.load(f).items()}
+
 #
 #   Create Choropleth map
 #
 
 
-def create_figure_geomap(pickup_counts, zone=None, zoom=10, center={"lat": 40.7, "lon": -73.99}):
+def create_figure_geomap(pickup_counts, zoom=10, center={"lat": 40.7, "lon": -73.99}):
     geomap_data = {
         'count': pickup_counts,
         'log_count': np.log10(pickup_counts),
@@ -79,39 +82,6 @@ def create_figure_geomap(pickup_counts, zone=None, zoom=10, center={"lat": 40.7,
                     '<br>Number of trips: %{customdata:.3s}'
     fig.data[0]['hovertemplate'] = hovertemplate
 
-    if zone is not None:
-        # draw the selected zone
-        geo_json_selected = geo_json.copy()
-        geo_json_selected['features'] = [
-            feature for feature in geo_json_selected['features'] if feature['properties']['zone'] == zone_index_to_name[zone]
-        ]
-
-        geomap_data_selected = {
-            'zone_name': [
-                geo_json_selected['features'][0]['properties']['zone'],
-            ],
-            'default_value': ['start'],
-            'log_count': [geomap_data['log_count'][zone]],
-            'count': [geomap_data['count'][zone]],
-        }
-        fig_temp = px.choropleth_mapbox(geomap_data_selected,
-                                        geojson=geo_json_selected,
-                                        color='default_value',
-                                        locations="zone_name",
-                                        featureidkey="properties.zone",
-                                        mapbox_style=STYLE_FILE,
-                                        hover_data=['count'],
-                                        zoom=9,
-                                        center={"lat": 40.7, "lon": -73.99},
-                                        opacity=1.,
-                                        )
-        fig.add_trace(fig_temp.data[0])
-        # Custom tool-tip
-        hovertemplate = '<br>Zone: %{location}' \
-                        '<br>Number of trips: %{customdata:.3s}' \
-                        '<extra></extra>'
-        fig.data[1]['hovertemplate'] = hovertemplate
-
     fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0},
                       coloraxis_showscale=False, showlegend=False, clickmode='event+select', height=700)
     return fig
@@ -127,12 +97,11 @@ def create_daily_plot(daily):
     weekly_fig.update_layout(
         yaxis=dict(tickformat=".1%", title=None),
         xaxis=dict(title=None),
-        title='Distribution of rides per weekday',
-        margin={"r": 0, "l": 0},
+        title='Taxi pickups per day',
+        margin={"r": 0, "l": 0, "b": 0},
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
     )
-
     return weekly_fig
 
 
@@ -145,7 +114,7 @@ def create_hourly_plot(hourly):
     hourly_fig.update_layout(
         yaxis=dict(title=None, tickformat='.1%'),
         xaxis=dict(title=None),
-        title='Distribution of rides per weekday',
+        title='Taxi pickups per hour',
         margin={"r": 0, "l": 0, "b": 0},
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
@@ -155,22 +124,40 @@ def create_hourly_plot(hourly):
     return hourly_fig
 
 
+def create_destination_table(destinations):
+
+    table_header = [html.Thead(
+        html.Tr([html.Th("Dropoff Zone"), html.Th("Share of Dropoffs")]))]
+
+    rows = []
+
+    for zone, share in destinations.items():
+        row = html.Tr([html.Td(f"{zone}"), html.Td(f"{share:.1%}")])
+        rows.append(row)
+
+    table_body = [html.Tbody(rows)]
+
+    return table_header + table_body
+
+
 #
 #   Create charts
 #
 
-data = ZONE_DATA['-1']
+data = ZONE_DATA.get(-1)  # -1 is the data for the entire city
 pickup_counts = data.get('pickup_counts')
-chart = create_figure_geomap(pickup_counts, zone=None)
 
 
+# default plots
+chart = create_figure_geomap(pickup_counts)
 daily = create_daily_plot(data.get('daily'))
-
 hourly = create_hourly_plot(data.get('hourly'))
+destinations = create_destination_table(data.get('destinations'))
 
 #
 #   App layout
 #
+
 map = dbc.Card(
     dbc.CardBody(
         dcc.Graph(
@@ -179,29 +166,48 @@ map = dbc.Card(
         ))
 )
 
+table = dbc.Card(
+    [dbc.CardBody(dbc.Table(destinations, bordered=False, size='sm', id='destinations', striped=True))], color='light', outline=True)
+
 
 graphs = dbc.Card(
     [
         dbc.CardHeader(
-            children=[html.H4("Zone Name", id='zone-stats-header')],
+            children=[
+                html.H3("New York City", id='zone-stats-header',
+                        style={"float": "left"}),
+                dbc.Button("Reset", id='reset-button', outline=True,
+                           color='secondary', style={"float": "right"})
+            ],
         ),
         dbc.CardBody(
-            dbc.CardGroup(
             [
-                dbc.Card(
-                dcc.Graph(
-                    id='daily',
-                    figure=daily
-                ), 
-                color='light',
-                outline=True
-                ),
-                dbc.Card(
-                dcc.Graph(
-                    id='hourly',
-                    figure=hourly
-                ))
-            ])
+            dbc.CardDeck(
+                [
+                    dbc.Card(
+                        dcc.Graph(
+                            id='daily',
+                            figure=daily,
+                            style={'height': '30vh'}
+                        ),
+                        color='light',
+                        outline=False
+                    ),
+                    dbc.Card(
+                        dcc.Graph(
+                            id='hourly',
+                            figure=hourly,
+                            style={'height': '30vh'}
+                        ),
+                        color='light',
+                        outline=False
+                    )
+                ]
+            ),
+            table
+
+
+            ]
         )
     ]
 )
@@ -228,41 +234,49 @@ content = html.Div(
     )
 )
 
-selected = html.Div([
-    dcc.Markdown("""
-                **Click Data**
 
-                Click on points in the graph.
-            """),
-    html.Pre(id='click-data'),
-])
-
-app.layout = html.Div(children=[dcc.Location(id="url"), content, selected])
+app.layout = html.Div(children=[dcc.Location(id="url"), content])
 
 
-@app.callback(
-    Output('click-data', 'children'),
-    Input('nyc_map', 'clickData')
-)
-def display_selected_data(clickData):
-    return json.dumps(clickData, indent=2)
+# @app.callback(
+#     Output('click-data', 'children'),
+#     Input('nyc_map', 'clickData')
+# )
+# def display_selected_data(clickData):
+#     return json.dumps(clickData, indent=2)
 
 
 @app.callback(
     Output('zone-stats-header', 'children'),
     Output('daily', 'figure'),
     Output('hourly', 'figure'),
-    Input('nyc_map', 'clickData')
+    Output('destinations', 'children'),
+    Input('nyc_map', 'clickData'),
+    Input('reset-button', 'n_clicks')
 )
-def update_hourly(clickData):
-    zone = str(clickData['points'][0]['pointNumber']
-               ) if clickData is not None else '-1'
-    data = ZONE_DATA[zone]
-    daily = create_daily_plot(data['daily'])
-    hourly = create_hourly_plot(data['hourly'])
+def update_content(clickData, n_clicks):
+
+    changed_id = dash.callback_context.triggered[0]
+
+    if 'reset-button.n_clicks' == changed_id.get('prop_id', ''):
+        zone = -1  # Get aggregate data
+    else:
+        zone = clickData['points'][0]['pointNumber'] if clickData is not None else -1
+    data = ZONE_DATA.get(zone)
+    daily = create_daily_plot(data.get('daily'))
+    hourly = create_hourly_plot(data.get('hourly'))
+    destinations = create_destination_table(data.get('destinations'))
 
     zone_name = data['name'] if clickData is not None else "New York City"
-    return zone_name, daily, hourly
+    return zone_name, daily, hourly, destinations
+
+
+@app.callback(
+    Output('nyc_map', 'figure'),
+    Input('reset-button', 'n_clicks')
+)
+def reset_map(n_clicks):
+    return chart
 
 
 if __name__ == '__main__':

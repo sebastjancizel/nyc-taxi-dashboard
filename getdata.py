@@ -16,59 +16,77 @@ df = vaex.open(TAXI_PATH)
 used_columns = ['total_amount',
                 'trip_duration_min',
                 'trip_speed_mph',
+                'trip_distance',
                 'pickup_hour',
                 'pickup_day',
-                'dropoff_borough',
                 'dropoff_zone',
-                'pickup_borough',
                 'pickup_zone']
 
 df.categorize(df.pickup_day, labels=[
-                       'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], inplace=True)
+    'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], inplace=True)
 df.categorize(df.pickup_zone, inplace=True)
 df.categorize(df.dropoff_zone, inplace=True)
 df.categorize(df.pickup_hour, inplace=True)
 
-def extract_zone_data(zone=None):
-    if zone == None:
-        daily_data = df.count(binby=df.pickup_day)
-        hourly_data = df.count(binby=df.pickup_hour)
-        # price_data  = df.count(binby=df.total_amount)
 
-    else:
-        zone_df = df[df.pickup_zone == zone]
-        daily_data = zone_df.count(binby=df.pickup_day)
-        hourly_data = zone_df.count(binby=df.pickup_hour)
-        # price_data  = zone_df.count(binby=df.total_amount)
+def extract_ride_statistics(zone=None):
+    # if zone == None:
+    #     daily_data = df.count(binby=df.pickup_day)
+    #     hourly_data = df.count(binby=df.pickup_hour)
 
+    # else:
+    #     zone_df = df[df.pickup_zone == zone]
+    #     daily_data = zone_df.count(binby=df.pickup_day)
+    #     hourly_data = zone_df.count(binby=df.pickup_hour)
+
+    selection = False
+
+    if zone is not None:
+        df.select(df.pickup_zone == zone)
+        selection = True
+
+    # Compute relative share of rides for each day compared to the mean
+    daily_data = df.count(binby=df.pickup_day, selection=selection)
     daily_data = 1/sum(daily_data) * daily_data
-    daily_data = np.around(daily_data - np.mean(daily_data), decimals=4)
+    daily_data = np.around(daily_data - np.mean(daily_data), decimals=3)
 
-    hourly_data = np.around(1/sum(hourly_data) * hourly_data, decimals=4)
+    # Compute relative share of pickups each hour
+    hourly_data = df.count(binby=df.pickup_hour, selection=selection)
+    hourly_data = np.around(1/sum(hourly_data) * hourly_data, decimals=3)
 
-    name = zone_index_to_name[zone] if zone is not None else "All"
+    # Compute top 5 destination zones
+    dropoff_count = df.count(binby=df.dropoff_zone, selection=selection)
+    dropoff_count = 1/sum(dropoff_count) * dropoff_count
+    sorted_args = np.argsort(-dropoff_count) # - is because we want the maximum elements
+    max_args = sorted_args[:5]
+    top_destinations = {
+        zone_index_to_name[zone]: 10*np.round(dropoff_count[zone], 3) for zone in max_args}
+    top_destinations['Other'] = 10*np.round(np.sum([dropoff_count[zone] for zone in sorted_args[5:]]), 3)
 
-    data = {"name": name, "daily": daily_data.tolist(), "hourly": hourly_data.tolist()}
+
+    name = zone_index_to_name[zone] if zone is not None else "New York City"
+
+    data = {
+        "name": name,
+        "daily": daily_data.tolist(),
+        "hourly": hourly_data.tolist(),
+        "destinations": top_destinations
+    }
 
     return data
+
 
 DATA = dict()
 
 for zone in tqdm(zone_index_to_name):
-    DATA[int(zone)] = extract_zone_data(zone = zone)
+    DATA[int(zone)] = extract_ride_statistics(zone=zone)
 
-## Store total data 
-DATA[-1] = extract_zone_data()
+# Store total data
+DATA[-1] = extract_ride_statistics()
 DATA[-1]['pickup_counts'] = df.count(binby=df.pickup_zone).tolist()
-
 
 
 OUT_PATH = "./aux_data/zone_data.json"
 
 with open(OUT_PATH, 'w') as f:
     json.dump(DATA, f)
-
-
-
-    
-
