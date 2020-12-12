@@ -54,6 +54,16 @@ data_filename = 'aux_data/zone_data.json'
 with open(data_filename, 'r') as f:
     ZONE_DATA = {int(zone): data for zone, data in json.load(f).items()}
 
+
+DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+CHART_LAYOUT = dict(
+    title=None,
+    margin={"r": 0, "l": 0, "b": 0, "t": 0},
+    plot_bgcolor='rgba(0,0,0,0)',
+    paper_bgcolor='rgba(0,0,0,0)',
+)
+
 #
 #   Create Choropleth map
 #
@@ -68,7 +78,7 @@ def create_figure_geomap(pickup_counts, zoom=10, center={"lat": 40.7, "lon": -73
     fig = px.choropleth_mapbox(geomap_data,
                                geojson=geo_json,
                                color="log_count",
-                               color_continuous_scale="magma",
+                               color_continuous_scale="RdYlBu_r",
                                locations="zone_name",
                                featureidkey="properties.zone",
                                mapbox_style=STYLE_FILE,
@@ -83,24 +93,21 @@ def create_figure_geomap(pickup_counts, zoom=10, center={"lat": 40.7, "lon": -73
     fig.data[0]['hovertemplate'] = hovertemplate
 
     fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0},
-                      coloraxis_showscale=False, showlegend=False, clickmode='event+select', height=700)
+                      coloraxis_showscale=False, showlegend=False, clickmode='event+select')
     return fig
 
 
 def create_daily_plot(daily):
 
-    days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-
-    weekly_fig = px.bar(x=days, y=daily)
+    weekly_fig = px.bar(x=DAYS, y=daily)
     weekly_fig.update_yaxes(zeroline=True, showgrid=True,
                             gridwidth=.5, gridcolor='#d5d5d5')
+
+    weekly_fig.update_layout(CHART_LAYOUT)
+
     weekly_fig.update_layout(
         yaxis=dict(tickformat=".1%", title=None),
         xaxis=dict(title=None),
-        title='Taxi pickups per day',
-        margin={"r": 0, "l": 0, "b": 0},
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
     )
     return weekly_fig
 
@@ -111,13 +118,11 @@ def create_hourly_plot(hourly):
     hourly_fig.update_yaxes(zeroline=True, showgrid=True,
                             gridwidth=.5, gridcolor='#d5d5d5')
 
+    hourly_fig.update_layout(CHART_LAYOUT)
+
     hourly_fig.update_layout(
         yaxis=dict(title=None, tickformat='.1%'),
         xaxis=dict(title=None),
-        title='Taxi pickups per hour',
-        margin={"r": 0, "l": 0, "b": 0},
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
         showlegend=False,
     )
 
@@ -127,23 +132,36 @@ def create_hourly_plot(hourly):
 def create_destination_table(destinations):
 
     table_header = [html.Thead(
-        html.Tr([html.Th("Dropoff Zone"), html.Th("Share of Dropoffs")]))]
+        html.Tr([html.Th("Zone"), html.Th("Percentage")]))]
 
     rows = []
 
     for zone, share in destinations.items():
-        row = html.Tr([html.Td(f"{zone}"), html.Td(f"{share:.1%}")])
+        row = html.Tr([html.Td(f"{zone}"), html.Td(f"{share/10:.1%}")])
         rows.append(row)
 
-    table_body = [html.Tbody(rows)]
+    table_body = [html.Tbody(rows, className="w100")]
 
     return table_header + table_body
+
+
+def create_heatmap(heatmap):
+
+    heatmap_fig = px.imshow(heatmap, x=list(range(24)),
+                            y=DAYS, color_continuous_scale='RdYlBu')
+
+    heatmap_fig.update_layout(CHART_LAYOUT)
+
+    heatmap_fig.update_layout(
+        coloraxis=dict(reversescale=True)
+    )
+
+    return heatmap_fig
 
 
 #
 #   Create charts
 #
-
 data = ZONE_DATA.get(-1)  # -1 is the data for the entire city
 pickup_counts = data.get('pickup_counts')
 
@@ -153,16 +171,41 @@ chart = create_figure_geomap(pickup_counts)
 daily = create_daily_plot(data.get('daily'))
 hourly = create_hourly_plot(data.get('hourly'))
 destinations = create_destination_table(data.get('destinations'))
+heatmap = create_heatmap(data.get('heatmap'))
+
+
+def build_graph_element(figure, title=None, id='', style=dict(), **kwargs):
+
+    graph = dcc.Graph(
+        figure=figure,
+        id=id,
+        style=style,
+    )
+
+    if title is not None:
+        title_element = html.H5(title)
+        content = [title_element, graph]
+    else:
+        content = graph
+
+    return dbc.Card(
+        dbc.CardBody(
+            content
+        ),
+        color='light',
+        outline=False,
+    )
+
 
 #
 #   App layout
 #
-
 map = dbc.Card(
     dbc.CardBody(
         dcc.Graph(
             id='nyc_map',
-            figure=chart
+            figure=chart,
+            style={'height': '80vh'}
         ))
 )
 
@@ -170,7 +213,7 @@ table = dbc.Card(
     [dbc.CardBody(dbc.Table(destinations, bordered=False, size='sm', id='destinations', striped=True))], color='light', outline=True)
 
 
-graphs = dbc.Card(
+main_dash = dbc.Card(
     [
         dbc.CardHeader(
             children=[
@@ -182,31 +225,21 @@ graphs = dbc.Card(
         ),
         dbc.CardBody(
             [
-            dbc.CardDeck(
-                [
-                    dbc.Card(
-                        dcc.Graph(
-                            id='daily',
-                            figure=daily,
-                            style={'height': '30vh'}
-                        ),
-                        color='light',
-                        outline=False
-                    ),
-                    dbc.Card(
-                        dcc.Graph(
-                            id='hourly',
-                            figure=hourly,
-                            style={'height': '30vh'}
-                        ),
-                        color='light',
-                        outline=False
-                    )
-                ]
-            ),
-            table
-
-
+                dbc.CardDeck(
+                    [
+                        build_graph_element(
+                            daily, id='daily', title="Rides per day compared to average", style={
+                                'height': '25vh'}),
+                        build_graph_element(
+                            hourly, id='hourly', title="Ride frequency throughout the day", style={'height': '25vh'})
+                    ],
+                    className="mb-4"
+                ),
+                dbc.CardDeck([
+                    build_graph_element(
+                        heatmap, id='heatmap', title='Average total fare', style={'height': '25vh'}),
+                    dbc.Card()]),
+                table
             ]
         )
     ]
@@ -214,7 +247,6 @@ graphs = dbc.Card(
 
 # the styles for the main content position it to the right of the sidebar and
 # add some padding.
-
 
 content = html.Div(
     dbc.Card(
@@ -226,7 +258,8 @@ content = html.Div(
             dbc.CardBody(
                 dbc.CardDeck(
                     [
-                        map, graphs
+                        map,
+                        main_dash
                     ]
                 ))
         ],
@@ -251,6 +284,7 @@ app.layout = html.Div(children=[dcc.Location(id="url"), content])
     Output('daily', 'figure'),
     Output('hourly', 'figure'),
     Output('destinations', 'children'),
+    Output('heatmap', 'figure'),
     Input('nyc_map', 'clickData'),
     Input('reset-button', 'n_clicks')
 )
@@ -266,9 +300,10 @@ def update_content(clickData, n_clicks):
     daily = create_daily_plot(data.get('daily'))
     hourly = create_hourly_plot(data.get('hourly'))
     destinations = create_destination_table(data.get('destinations'))
+    heatmap = create_heatmap(data.get('heatmap'))
 
     zone_name = data['name'] if clickData is not None else "New York City"
-    return zone_name, daily, hourly, destinations
+    return zone_name, daily, hourly, destinations, heatmap
 
 
 @app.callback(
