@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import calendar
 import json
+import markdown
 import os
 import vaex
 # plotly components
@@ -64,9 +65,14 @@ CHART_LAYOUT = dict(
     paper_bgcolor='rgba(0,0,0,0)',
 )
 
+with open("README.md", 'r') as f:
+    DESCRIPTION = f.read() 
+
 #
-#   Create Choropleth map
+#   Define chart builder functions
 #
+
+# NYC MAP
 
 
 def create_figure_geomap(pickup_counts, zoom=10, center={"lat": 40.7, "lon": -73.99}):
@@ -96,6 +102,8 @@ def create_figure_geomap(pickup_counts, zoom=10, center={"lat": 40.7, "lon": -73
                       coloraxis_showscale=False, showlegend=False, clickmode='event+select')
     return fig
 
+# RIDES PER DAY
+
 
 def create_daily_plot(daily):
 
@@ -110,6 +118,8 @@ def create_daily_plot(daily):
         xaxis=dict(title=None),
     )
     return weekly_fig
+
+# RIDES PER HOUR
 
 
 def create_hourly_plot(hourly):
@@ -130,19 +140,24 @@ def create_hourly_plot(hourly):
 
 
 def create_destination_table(destinations):
+    text_style = {'font-size':13}
 
     table_header = [html.Thead(
-        html.Tr([html.Th("Zone"), html.Th("Percentage")]))]
+        html.Tr([html.Th("Zone", style=text_style), html.Th("%", style=text_style)]))]
 
     rows = []
 
     for zone, share in destinations.items():
-        row = html.Tr([html.Td(f"{zone}"), html.Td(f"{share/10:.1%}")])
-        rows.append(row)
+        if zone != 'Other':
+            row = html.Tr([html.Td(f"{zone}", style=text_style), html.Td(f"{share/10:.1%}", style=text_style)])
+            rows.append(row)
+
 
     table_body = [html.Tbody(rows, className="w100")]
 
     return table_header + table_body
+
+# AVERAGE FARE
 
 
 def create_heatmap(heatmap):
@@ -153,20 +168,26 @@ def create_heatmap(heatmap):
     heatmap_fig.update_layout(CHART_LAYOUT)
 
     heatmap_fig.update_layout(
-        coloraxis=dict(reversescale=True)
+        coloraxis=dict(reversescale=True, showscale=False)
     )
+
+    hovertemplate = '<br>Hour: %{x}' \
+                    '<br>Day: %{y}' \
+                    '<br>Price: %{z}'
+    heatmap_fig.data[0]['hovertemplate'] = hovertemplate
 
     return heatmap_fig
 
 
 #
-#   Create charts
+#   INITIALIZE THE CHARTS
 #
-data = ZONE_DATA.get(-1)  # -1 is the data for the entire city
+
+# Select the data for the entire city
+data = ZONE_DATA.get(-1)  # -1 is code for the entire city
 pickup_counts = data.get('pickup_counts')
 
-
-# default plots
+# Create initial plot
 chart = create_figure_geomap(pickup_counts)
 daily = create_daily_plot(data.get('daily'))
 hourly = create_hourly_plot(data.get('hourly'))
@@ -183,7 +204,7 @@ def build_graph_element(figure, title=None, id='', style=dict(), **kwargs):
     )
 
     if title is not None:
-        title_element = html.H5(title)
+        title_element = html.H6(title)
         content = [title_element, graph]
     else:
         content = graph
@@ -205,19 +226,28 @@ map = dbc.Card(
         dcc.Graph(
             id='nyc_map',
             figure=chart,
-            style={'height': '80vh'}
+            style={'height': '85vh'}
         ))
 )
 
 table = dbc.Card(
-    [dbc.CardBody(dbc.Table(destinations, bordered=False, size='sm', id='destinations', striped=True))], color='light', outline=True)
+    [
+        dbc.CardBody([
+            html.H6("Top destination zones"),
+            dbc.Table(
+                destinations, bordered=False, size='sm', id='destinations', striped=True,
+            )]
+        )
+    ], 
+    color='light', outline=False
+)
 
 
 main_dash = dbc.Card(
     [
         dbc.CardHeader(
             children=[
-                html.H3("New York City", id='zone-stats-header',
+                html.H4("New York City", id='zone-stats-header',
                         style={"float": "left"}),
                 dbc.Button("Reset", id='reset-button', outline=True,
                            color='secondary', style={"float": "right"})
@@ -233,28 +263,51 @@ main_dash = dbc.Card(
                         build_graph_element(
                             hourly, id='hourly', title="Ride frequency throughout the day", style={'height': '25vh'})
                     ],
-                    className="mb-4"
+                    className="mb-3"
                 ),
                 dbc.CardDeck([
                     build_graph_element(
                         heatmap, id='heatmap', title='Average total fare', style={'height': '25vh'}),
-                    dbc.Card()]),
-                table
+                    table]),
             ]
         )
     ]
 )
 
-# the styles for the main content position it to the right of the sidebar and
-# add some padding.
+BUTTON_STYLE = dict(style={"color": "grey"})
+
+
+# Navigation buttons
+navbar = dbc.Navbar([
+    dbc.NavbarBrand(html.H2("NYC Taxi Dashboard")),
+    dbc.NavbarToggler(id="navbar-toggler"),
+    dbc.Collapse(dbc.Nav(
+        [
+            dbc.NavItem(dbc.NavLink("Description", id='description-button',
+                                    active=True, href="#", **BUTTON_STYLE)),
+            dbc.NavItem(dbc.NavLink("Dataset", href="#", **BUTTON_STYLE)),
+            dbc.NavItem(dbc.NavLink(
+                "Repository", href="https://github.com/sebastjancizel/nyc-taxi-dashboard", **BUTTON_STYLE)),
+        ],
+        style={'color': 'grey'}, fill=True, 
+    ),
+    id='navbar-collapse', navbar=True) 
+])
+description = dbc.Modal(
+    [
+        dbc.ModalHeader("Description"),
+        dbc.ModalBody(dcc.Markdown(DESCRIPTION)),
+        dbc.ModalFooter(
+            dbc.Button("Close", id="close-description")
+        )
+    ],
+    id="description",
+    size="xl"
+)
 
 content = html.Div(
     dbc.Card(
         [
-            dbc.CardHeader(
-                html.H1("NYC Taxi Dataset"),
-                # style={"background-color":"#2780E3", "opacity":0.3}
-            ),
             dbc.CardBody(
                 dbc.CardDeck(
                     [
@@ -268,17 +321,14 @@ content = html.Div(
 )
 
 
-app.layout = html.Div(children=[dcc.Location(id="url"), content])
+app.layout = html.Div(children=[dcc.Location(
+    id="url"), navbar, content, description])
 
+#
+# CALLBACKS
+#
 
-# @app.callback(
-#     Output('click-data', 'children'),
-#     Input('nyc_map', 'clickData')
-# )
-# def display_selected_data(clickData):
-#     return json.dumps(clickData, indent=2)
-
-
+# Chart update
 @app.callback(
     Output('zone-stats-header', 'children'),
     Output('daily', 'figure'),
@@ -305,13 +355,28 @@ def update_content(clickData, n_clicks):
     zone_name = data['name'] if clickData is not None else "New York City"
     return zone_name, daily, hourly, destinations, heatmap
 
-
+# Toggle description 
 @app.callback(
-    Output('nyc_map', 'figure'),
-    Input('reset-button', 'n_clicks')
+    Output('description', 'is_open'),
+    [Input('description-button', 'n_clicks'),
+     Input('close-description', 'n_clicks')],
+    [State('description', 'is_open')]
 )
-def reset_map(n_clicks):
-    return chart
+def toggle_description(n1, n2, is_open):
+    if n1 or n2:
+        return not is_open
+    return is_open
+
+# Control the collapse of navbar on small screens
+@app.callback(
+    Output("navbar-collapse", "is_open"),
+    [Input("navbar-toggler", "n_clicks")],
+    [State("navbar-collapse", "is_open")],
+)
+def toggle_navbar_collapse(n, is_open):
+    if n:
+        return not is_open
+    return is_open
 
 
 if __name__ == '__main__':
