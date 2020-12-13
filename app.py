@@ -164,7 +164,6 @@ def create_heatmap(heatmap):
     heatmap_fig = px.imshow(heatmap, x=list(range(24)),
                             y=DAYS, color_continuous_scale='RdYlBu')
 
-markdown
     heatmap_fig.update_layout(CHART_LAYOUT)
 
     heatmap_fig.update_layout(
