@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import calendar
 import json
-import markdown
 import os
 import vaex
 # plotly components
@@ -165,6 +164,7 @@ def create_heatmap(heatmap):
     heatmap_fig = px.imshow(heatmap, x=list(range(24)),
                             y=DAYS, color_continuous_scale='RdYlBu')
 
+markdown
     heatmap_fig.update_layout(CHART_LAYOUT)
 
     heatmap_fig.update_layout(
