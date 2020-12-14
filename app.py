@@ -225,7 +225,7 @@ map = dbc.Card(
         dcc.Graph(
             id='nyc_map',
             figure=chart,
-            style={'height': '85vh'}
+            style={'height': '80vh'}
         ))
 )
 
@@ -258,15 +258,19 @@ main_dash = dbc.Card(
                     [
                         build_graph_element(
                             daily, id='daily', title="Rides per day compared to average", style={
-                                'height': '25vh'}),
+                                'height': '30vh'}),
                         build_graph_element(
-                            hourly, id='hourly', title="Ride frequency throughout the day", style={'height': '25vh'})
+                            hourly, id='hourly', title="Ride frequency throughout the day", 
+                            style={'height': '25vh'}
+                            )
                     ],
                     className="mb-3"
                 ),
                 dbc.CardDeck([
                     build_graph_element(
-                        heatmap, id='heatmap', title='Average total fare', style={'height': '25vh'}),
+                        heatmap, id='heatmap', title='Average total fare', 
+                        style={'height': '25vh'}
+                        ),
                     table]),
             ]
         )
@@ -284,7 +288,7 @@ navbar = dbc.Navbar([
         [
             dbc.NavItem(dbc.NavLink("Description", id='description-button',
                                     active=True, href="#", **BUTTON_STYLE)),
-            dbc.NavItem(dbc.NavLink("Dataset", href="#", **BUTTON_STYLE)),
+            dbc.NavItem(dbc.NavLink("Dataset", href="https://www1.nyc.gov/site/tlc/about/tlc-trip-record-data.page", **BUTTON_STYLE)),
             dbc.NavItem(dbc.NavLink(
                 "Repository", href="https://github.com/sebastjancizel/nyc-taxi-dashboard", **BUTTON_STYLE)),
         ],
