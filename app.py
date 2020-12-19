@@ -264,16 +264,16 @@ main_dash = dbc.Card(
         dbc.CardHeader(
             children=[
                 html.H4(
-                    "New York City", id="zone-stats-header", style={"float": "left"}
+                    "New York City", id="zone-stats-header", className="float-left"
                 ),
-                dbc.Button(
+                html.Button(
                     "Reset",
+                    className="btn btn-primary float-right",
                     id="reset-button",
-                    outline=True,
-                    color="secondary",
-                    style={"float": "right"},
+                    style={"color": "#fff", "border-color": "#fff"},
                 ),
             ],
+            className="bg-primary text-white",
         ),
         dbc.CardBody(
             [
@@ -283,7 +283,7 @@ main_dash = dbc.Card(
                             daily,
                             id="daily",
                             title="Rides per day compared to average",
-                            style={"height": "30vh"},
+                            style={"height": "25vh"},
                         ),
                         build_graph_element(
                             hourly,
@@ -307,10 +307,9 @@ main_dash = dbc.Card(
                 ),
             ]
         ),
-    ]
+    ],
 )
 
-BUTTON_STYLE = dict(style={"color": "grey"})
 
 
 # Navigation buttons
@@ -327,21 +326,21 @@ navbar = dbc.Navbar(
                             id="description-button",
                             active=True,
                             href="#",
-                            **BUTTON_STYLE,
+                            className="text-white"
                         )
                     ),
                     dbc.NavItem(
                         dbc.NavLink(
                             "Dataset",
                             href="https://www1.nyc.gov/site/tlc/about/tlc-trip-record-data.page",
-                            **BUTTON_STYLE,
+                            className="text-white"
                         )
                     ),
                     dbc.NavItem(
                         dbc.NavLink(
                             "Repository",
                             href="https://github.com/sebastjancizel/nyc-taxi-dashboard",
-                            **BUTTON_STYLE,
+                            className="text-white"
                         )
                     ),
                 ],
@@ -351,7 +350,9 @@ navbar = dbc.Navbar(
             id="navbar-collapse",
             navbar=True,
         ),
-    ]
+    ],
+    color="primary",
+    dark=True,
 )
 description = dbc.Modal(
     [
@@ -364,11 +365,18 @@ description = dbc.Modal(
 )
 
 content = html.Div(
-    dbc.Card([dbc.CardBody(dbc.CardDeck([map, main_dash]))], id="content")
+    dbc.Card(
+        [dbc.CardBody(dbc.CardDeck([map, main_dash]))],
+        id="content",
+        style={"background-color": "#efefef"},
+    )
 )
 
 
-app.layout = html.Div(children=[dcc.Location(id="url"), navbar, content, description])
+app.layout = html.Div(
+    children=[dcc.Location(id="url"), navbar, content, description],
+    style={"background-color": "#efefef"},
+)
 
 #
 # CALLBACKS
