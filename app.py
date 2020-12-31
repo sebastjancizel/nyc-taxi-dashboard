@@ -1,11 +1,6 @@
-import base64
-import datetime
-import io
 import numpy as np
 import pandas as pd
-import calendar
 import json
-import os
 import vaex
 
 # plotly components
@@ -20,7 +15,6 @@ import dash
 from dash.dependencies import Input, Output, State
 import dash_core_components as dcc
 import dash_html_components as html
-import dash_table
 import dash_bootstrap_components as dbc
 
 external_stylesheets = [dbc.themes.COSMO]
@@ -311,7 +305,6 @@ main_dash = dbc.Card(
 )
 
 
-
 # Navigation buttons
 navbar = dbc.Navbar(
     [
@@ -326,21 +319,21 @@ navbar = dbc.Navbar(
                             id="description-button",
                             active=True,
                             href="#",
-                            className="text-white"
+                            className="text-white",
                         )
                     ),
                     dbc.NavItem(
                         dbc.NavLink(
                             "Dataset",
                             href="https://www1.nyc.gov/site/tlc/about/tlc-trip-record-data.page",
-                            className="text-white"
+                            className="text-white",
                         )
                     ),
                     dbc.NavItem(
                         dbc.NavLink(
                             "Repository",
                             href="https://github.com/sebastjancizel/nyc-taxi-dashboard",
-                            className="text-white"
+                            className="text-white",
                         )
                     ),
                 ],
@@ -353,6 +346,7 @@ navbar = dbc.Navbar(
     ],
     color="primary",
     dark=True,
+    sticky="top",
 )
 description = dbc.Modal(
     [
@@ -390,9 +384,8 @@ app.layout = html.Div(
     Output("destinations", "children"),
     Output("heatmap", "figure"),
     Input("nyc_map", "clickData"),
-    Input("reset-button", "n_clicks"),
 )
-def update_content(clickData, n_clicks):
+def update_content(clickData):
 
     changed_id = dash.callback_context.triggered[0]
 

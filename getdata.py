@@ -69,7 +69,7 @@ def extract_ride_statistics(zone=None):
     heatmap_data = df.total_amount.mean(
         binby=["pickup_day", "pickup_hour"], selection=selection
     )
-    heatmap_data = np.round(heatmap_data, 3)  # this puts Monday on top
+    heatmap_data = np.round(heatmap_data, 3)  
 
     data = {
         "name": name,
